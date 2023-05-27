@@ -1,17 +1,11 @@
 <?php
 
-use YonisSavary\PHPDom\src\classes\Node;
+use YonisSavary\PHPDom\Classes\Node\Node;
 
-const TO_LOAD = [
-    "src/interfaces",
-    "src/classes"
-];
-
-foreach (TO_LOAD as $dir)
-{
-    foreach (glob($dir."/*.php") as $file)
-        require_once $file;
-}
+require_once "./bootstrap.php";
 
 
-Node::makeDocument(file_get_contents("./samples/index.html"));
+$path = "Tests/Pages/phpdom-sample.html";
+
+$document = Node::makeDocument(file_get_contents($path));
+print_r($document->querySelector("li > a"));

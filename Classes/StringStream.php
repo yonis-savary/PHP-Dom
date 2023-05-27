@@ -1,6 +1,6 @@
 <?php
 
-namespace YonisSavary\PHPDom\src\classes;
+namespace YonisSavary\PHPDom\Classes;
 
 class StringStream
 {
@@ -88,6 +88,7 @@ class StringStream
             $html .= $this->getChar();
         }
     }
+
 
 
     public static function parseAttributes(string $node)

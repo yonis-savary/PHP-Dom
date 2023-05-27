@@ -1,19 +1,35 @@
 <?php
 
-namespace YonisSavary\PHPDom\src\classes;
+namespace YonisSavary\PHPDom\Classes\Node;
 
-use YonisSavary\PHPDom\src\interfaces\HTMLElement;
+use YonisSavary\PHPDom\Classes\Interfaces\HTMLElement;
+use YonisSavary\PHPDom\Classes\Interfaces\NodeElement;
 
 class DeclarationElement implements HTMLElement
 {
     const TYPE_DECLARATION = 0;
     const TYPE_COMMENT = 1;
 
+    protected HTMLElement $parent;
+
+    public function setParent(HTMLElement &$parent)
+    {
+        $this->parent = $parent;
+    }
+
+    public function parentNode(): ?NodeElement
+    {
+        return $this->parent;
+    }
+
+
     public function __construct(
         public string $content,
         public int $type=self::TYPE_COMMENT
     )
     {}
+
+
 
     public function nodeName(): string
     {
