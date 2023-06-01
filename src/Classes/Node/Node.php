@@ -95,7 +95,7 @@ class Node implements NodeElement
         return $this->childs;
     }
 
-    public static function makeDocument(string $html)
+    public static function makeDocument(string $html): Node
     {
         $node = new Node(":root");
         $node->parseHTML($html);
@@ -150,7 +150,7 @@ class Node implements NodeElement
     }
 
 
-    public function getElementRegex()
+    public function getElementRegex(): string
     {
         $attrCopy = $this->attributes;
         ksort($attrCopy);
@@ -161,7 +161,7 @@ class Node implements NodeElement
         return $this->nodeName() . $attributes;
     }
 
-    public function getRegex()
+    public function getRegex(): string
     {
         $node = $this;
         $regex = [];
@@ -173,6 +173,7 @@ class Node implements NodeElement
     }
 
 
+    /** @return \Generator|Node[] */
     public function iterate()
     {
         yield $this;
@@ -183,7 +184,7 @@ class Node implements NodeElement
         }
     }
 
-    public function querySelector(string $selector)
+    public function querySelector(string $selector): Node
     {
         $selector = Selector::fromString($selector);
         $selectorPattern = $selector->getRegex();
@@ -197,6 +198,7 @@ class Node implements NodeElement
         return null;
     }
 
+    /** @return array<Node> */
     public function querySelectorAll(string $selector): array
     {
         $nodes = [];
