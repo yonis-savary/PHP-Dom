@@ -1,5 +1,13 @@
 {
-    "require-dev": {
-        "phpunit/phpunit": "^9.6"
-    }
+    "name": "yonissavary/php-dom",
+    "description": "HTML Parser for PHP",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Yonissavary\\PhpDom\\": "src/"
+        }
+    },
+    "minimum-stability": "dev",
+    "require": {}
 }
