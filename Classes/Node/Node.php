@@ -97,7 +97,7 @@ class Node implements NodeElement
 
     public static function makeDocument(string $html)
     {
-        $node = new Node("#root");
+        $node = new Node(":root");
         $node->parseHTML($html);
         return $node;
     }
@@ -156,9 +156,9 @@ class Node implements NodeElement
         ksort($attrCopy);
         $attributes = "";
         foreach ($attrCopy as $key=>$value)
-            $attributes .= " [$key='$value']";
+            $attributes .= "[$key=$value]";
 
-        return "(". $this->nodeName() . ")$attributes";
+        return $this->nodeName() . $attributes;
     }
 
     public function getRegex()
@@ -169,7 +169,7 @@ class Node implements NodeElement
         do { array_unshift($regex, $node->getElementRegex());}
         while ($node = $node->parentNode());
 
-        return join(" > ", $regex);
+        return join(">", $regex);
     }
 
 

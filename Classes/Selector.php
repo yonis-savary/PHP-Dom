@@ -13,7 +13,7 @@ class Selector
     public string $regex = "";
 
 
-    public static function fromString(string $selector)
+    public static function fromString(string $selector): Selector
     {
         $stream = new StringStream($selector);
 
@@ -130,8 +130,25 @@ class Selector
         $this->cleanParts();
     }
 
+    protected function attributeToRegex($attributeSelector)
+    {
+        $baseSelector = fn($str) => "(?=[^\\n>]*\\[$str\\])[^\\n>]*";
 
-    protected function buildRegex()
+        $attributeSelector = str_replace('"', "", $attributeSelector);
+        $attributeSelector = str_replace("'", "", $attributeSelector);
+
+        if (strpos($attributeSelector, "^="))
+            return $baseSelector(sprintf("%s=%s.+?", ...explode("^=", $attributeSelector)));
+        else if (strpos($attributeSelector, "*="))
+            return $baseSelector(sprintf("%s=.+?%s.+?", ...explode("^=", $attributeSelector)));
+        else if (strpos($attributeSelector, "$="))
+            return $baseSelector(sprintf("%s=.+?%s", ...explode("^=", $attributeSelector)));
+
+        return $baseSelector($attributeSelector."=");
+    }
+
+
+    public function buildRegex()
     {
         $regexParts = [];
         foreach ($this->parts as $part)
@@ -139,22 +156,18 @@ class Selector
             switch ($part[0])
             {
                 case "element":
-                    $regexParts[] = $part[1] == "*" ? ".+": preg_quote("($part[1])");
+                    $regexParts[] = $part[1] == "*" ? ".+": preg_quote($part[1]);
                     break;
                 case "select-childs":
-                    $regexParts[] = $part[1] == 1 ? "(.+ )?>": ">";
+                    $regexParts[] = $part[1] == 1 ? "(.+)?>": ">";
                     break;
                 case "attribute":
                     $value = $part[1];
-                    $value = str_replace('"', "'", $value);
-                    $value = (strpos($value, "=") === false) ?
-                        "$value=.+?":
-                        preg_quote($value);
-                    $regexParts[] = "(\\[.+?\\])? \\[$value\\]";
+                    $regexParts[] = $this->attributeToRegex($value);
                     break;
             }
         }
-        return "/".join(" ", $regexParts)."/";
+        return "/".join("", $regexParts)."/";
     }
 
     public function cleanParts()
