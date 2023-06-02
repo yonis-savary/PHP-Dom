@@ -38,7 +38,7 @@ class Node implements NodeElement
 
     public function innerText(): string
     {
-        return htmlentities($this->innerHTML());
+        return join("\n", array_map(fn($e)=>$e->innerText(), $this->childs));
     }
 
     public function __toString()
@@ -57,12 +57,13 @@ class Node implements NodeElement
 
         $tabs = str_repeat("\t", $depth);
 
-        $cr = count($this->childs) > 1 ? "\n$tabs" : "";
+        if (!count($this->childs))
+            return "\n$tabs<$nodeName$attrStr/>";
 
         return
-            "\n$tabs<$nodeName$attrStr>"
-            .join("", array_map(fn($e)=>$e->innerHTML($depth+1), $this->childs)).
-            "$cr</$nodeName>";
+            "\n$tabs<$nodeName$attrStr>\n"
+            .join("", array_map(fn($e)=> $e->innerHTML($depth+1), $this->childs)).
+            "\n$tabs</$nodeName>";
     }
 
     public function setAttribute(string $key, mixed $value)
@@ -134,14 +135,18 @@ class Node implements NodeElement
 
             if (str_starts_with($node, "<!--"))
             {
-                $comment = $stream->readUntil("-->");
-                $this->childs[] = new DeclarationElement($comment, DeclarationElement::TYPE_COMMENT);
+                $comment = $node;
+                if (!str_ends_with($comment, "-->"))
+                    $comment .= $stream->readUntil("-->");
+
+                $commentContent = preg_replace("/.*<!--|-->$/s", "", $comment);
+                $this->childs[] = new DeclarationElement($commentContent, DeclarationElement::TYPE_COMMENT);
                 continue;
             }
             if (str_starts_with($node, "<!"))
             {
-                $comment = $stream->readUntil(">");
-                $this->childs[] = new DeclarationElement($comment, DeclarationElement::TYPE_DECLARATION);
+                $declaration = substr($node, 2, strlen($node)-3);
+                $this->childs[] = new DeclarationElement($declaration, DeclarationElement::TYPE_DECLARATION);
                 continue;
             }
 
@@ -167,7 +172,7 @@ class Node implements NodeElement
         foreach ($attrCopy as $key=>$value)
             $attributes .= "[$key=$value]";
 
-        return $this->nodeName() . $attributes;
+        return "{". $this->nodeName() ."}" . $attributes;
     }
 
     public function getRegex(): string
@@ -193,7 +198,7 @@ class Node implements NodeElement
         }
     }
 
-    public function querySelector(string $selector): Node
+    public function querySelector(string $selector): ?Node
     {
         $selector = Selector::fromString($selector);
         $selectorPattern = $selector->getRegex();

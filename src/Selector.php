@@ -156,7 +156,7 @@ class Selector
             switch ($part[0])
             {
                 case "element":
-                    $regexParts[] = $part[1] == "*" ? ".+": preg_quote($part[1]);
+                    $regexParts[] = $part[1] == "*" ? "\\{.+?\\}": preg_quote("{".$part[1]."}");
                     break;
                 case "select-childs":
                     $regexParts[] = $part[1] == 1 ? "(.+)?>": ">";

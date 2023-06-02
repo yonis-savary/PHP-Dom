@@ -29,11 +29,11 @@ class TextElement implements HTMLElement
 
     public function innerText(): string
     {
-        return htmlentities($this->content);
+        return $this->content;
     }
 
-    public function innerHTML(): string
+    public function innerHTML(int $depth=0): string
     {
-        return $this->content;
+        return str_repeat("\t", $depth) . $this->content;
     }
 }

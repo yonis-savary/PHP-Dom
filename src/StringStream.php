@@ -72,10 +72,15 @@ class StringStream
     {
         $html = "";
         $depth = 0;
+
+        $initialPosition = $this->tell();
         while (true)
         {
             if ($this->eof())
+            {
+                $this->seek($initialPosition);
                 return "";
+            }
 
             if ($depth === 0 && $this->expect("</$nodeName"))
                 return $html;

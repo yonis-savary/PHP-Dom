@@ -38,19 +38,19 @@ class DeclarationElement implements HTMLElement
 
     public function innerText(): string
     {
-        return htmlentities($this->innerHTML());
+        return "";
     }
 
-    public function innerHTML(): string
+    public function innerHTML(int $depth=0): string
     {
         $content = $this->content;
+        $tabs = str_repeat("\t", $depth);
         switch ($this->type)
         {
             case self::TYPE_COMMENT:
-                return "<!-- $content -->";
-                break;
+                return "$tabs<!-- $content -->";
         }
 
-        return "<!$content>";
+        return "$tabs<!$content>";
     }
 }

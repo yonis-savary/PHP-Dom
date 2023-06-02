@@ -4,12 +4,15 @@ namespace YonisSavary\PHPDom\Tests;
 
 use PHPUnit\Framework\TestCase;
 use YonisSavary\PHPDom\Node\Node;
+use YonisSavary\PHPDom\Node\TextElement;
 
 class NodeTest extends TestCase
 {
     protected function getSampleLink(): Node
     {
-        return new Node("a", ["href" => "https://github.com/"]);
+        $link = new Node("a", ["href" => "https://github.com/"]);
+        $link->appendChild(new TextElement("GitHub"));
+        return $link;
     }
 
     public function test___construct()
@@ -28,7 +31,7 @@ class NodeTest extends TestCase
     {
         $node = $this->getSampleLink();
         $this->assertEquals(
-            "\n".htmlentities('<a href="https://github.com/"></a>'),
+            "GitHub",
             $node->innerText()
         );
     }
@@ -37,7 +40,7 @@ class NodeTest extends TestCase
     {
         $node = $this->getSampleLink();
         $this->assertEquals(
-            "\n".'<a href="https://github.com/"></a>',
+            "\n<a href=\"https://github.com/\">\n\tGitHub\n</a>",
             $node->innerHTML()
         );
     }
