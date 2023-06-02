@@ -1,9 +1,9 @@
 <?php
 
-namespace YonisSavary\PHPDom\Classes\Node;
+namespace YonisSavary\PHPDom\Node;
 
-use YonisSavary\PHPDom\Classes\Interfaces\HTMLElement;
-use YonisSavary\PHPDom\Classes\Interfaces\NodeElement;
+use YonisSavary\PHPDom\Interfaces\HTMLElement;
+use YonisSavary\PHPDom\Interfaces\NodeElement;
 
 class TextElement implements HTMLElement
 {

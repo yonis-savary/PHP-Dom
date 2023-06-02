@@ -3,15 +3,13 @@
 namespace YonisSavary\PHPDom\Tests;
 
 use PHPUnit\Framework\TestCase;
-use YonisSavary\PHPDom\Classes\Node\Node;
+use YonisSavary\PHPDom\Node\Node;
 
 class NodeTest extends TestCase
 {
     protected function getSampleLink(): Node
     {
-        return new Node("a", [
-            "href" => "https://github.com/"
-        ]);
+        return new Node("a", ["href" => "https://github.com/"]);
     }
 
     public function test___construct()
@@ -159,8 +157,7 @@ class NodeTest extends TestCase
 
     public function getSampleDocument()
     {
-        $path = __DIR__ . "/Pages/phpdom-sample.html";
-        return Node::makeDocument(file_get_contents($path));
+        return Node::fromFile(__DIR__ . "/Pages/phpdom-sample.html");
     }
 
     public function test_querySelector()

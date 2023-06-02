@@ -1,11 +1,12 @@
 <?php
 
-namespace YonisSavary\PHPDom\Classes\Node;
+namespace YonisSavary\PHPDom\Node;
 
-use YonisSavary\PHPDom\Classes\Interfaces\HTMLElement;
-use YonisSavary\PHPDom\Classes\Interfaces\NodeElement;
-use YonisSavary\PHPDom\Classes\Selector;
-use YonisSavary\PHPDom\Classes\StringStream;
+use InvalidArgumentException;
+use YonisSavary\PHPDom\Interfaces\HTMLElement;
+use YonisSavary\PHPDom\Interfaces\NodeElement;
+use YonisSavary\PHPDom\Selector;
+use YonisSavary\PHPDom\StringStream;
 
 class Node implements NodeElement
 {
@@ -100,6 +101,14 @@ class Node implements NodeElement
         $node = new Node(":root");
         $node->parseHTML($html);
         return $node;
+    }
+
+    public static function fromFile(string $path): Node
+    {
+        if (!is_file($path))
+            throw new InvalidArgumentException("[$path] file not found !");
+
+        return self::makeDocument(file_get_contents($path));
     }
 
     public function parseHTML(string $html)

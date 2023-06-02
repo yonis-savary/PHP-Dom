@@ -1,6 +1,6 @@
 <?php
 
-namespace YonisSavary\PHPDom\Classes\Interfaces;
+namespace YonisSavary\PHPDom\Interfaces;
 
 interface HTMLElement
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace YonisSavary\PHPDom\Classes;
+namespace YonisSavary\PHPDom;
 
 class StringStream
 {
