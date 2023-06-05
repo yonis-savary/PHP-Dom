@@ -12,6 +12,11 @@ class DeclarationElement implements HTMLElement
 
     protected HTMLElement $parent;
 
+    public function __construct(
+        public string $content,
+        public int $type=self::TYPE_COMMENT
+    ){}
+
     public function setParent(HTMLElement &$parent)
     {
         $this->parent = $parent;
@@ -21,15 +26,6 @@ class DeclarationElement implements HTMLElement
     {
         return $this->parent;
     }
-
-
-    public function __construct(
-        public string $content,
-        public int $type=self::TYPE_COMMENT
-    )
-    {}
-
-
 
     public function nodeName(): string
     {

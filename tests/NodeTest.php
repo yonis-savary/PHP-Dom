@@ -170,6 +170,11 @@ class NodeTest extends TestCase
         $this->assertInstanceOf(Node::class, $document->querySelector("a"), "First link");
         $this->assertInstanceOf(Node::class, $document->querySelector("li > a"), "Link inside list");
         $this->assertInstanceOf(Node::class, $document->querySelector("section ul a"), "Full selector");
+
+        $this->assertNull($document->querySelector("div"), "Inexistant Div");
+
+        $this->assertInstanceOf(Node::class, $document->querySelector("span"), "First link");
+        $this->assertNull($document->querySelector("span > a"), "Inexistant Link inside Span");
     }
 
     public function test_querySelectorAll()

@@ -9,6 +9,8 @@ class TextElement implements HTMLElement
 {
     protected HTMLElement $parent;
 
+    public function __construct(public string $content) {}
+
     public function setParent(HTMLElement &$parent)
     {
         $this->parent = $parent;
@@ -18,9 +20,6 @@ class TextElement implements HTMLElement
     {
         return $this->parent;
     }
-
-    public function __construct(public string $content)
-    {}
 
     public function nodeName(): string
     {
