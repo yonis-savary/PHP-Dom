@@ -41,7 +41,7 @@ class Node implements NodeElement
         return join("\n", array_map(fn($e)=>$e->innerText(), $this->childs));
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return $this->innerHTML();
     }
@@ -97,7 +97,7 @@ class Node implements NodeElement
         return $this->childs;
     }
 
-    public static function makeDocument(string $html): Node
+    public static function fromString(string $html): Node
     {
         $node = new Node(":root");
         $node->parseHTML($html);
@@ -109,10 +109,10 @@ class Node implements NodeElement
         if (!is_file($path))
             throw new InvalidArgumentException("[$path] file not found !");
 
-        return self::makeDocument(file_get_contents($path));
+        return self::fromString(file_get_contents($path));
     }
 
-    public function parseHTML(string $html)
+    public function parseHTML(string $html): void
     {
         $html = trim($html);
         $stream = new StringStream($html);
@@ -152,40 +152,33 @@ class Node implements NodeElement
 
             $html = $stream->readNode($nodeName);
             $child = new Node($nodeName, StringStream::parseAttributes($node));
-            $child->parseHTML($html);
-            $this->childs[] = $child;
-        }
 
-        foreach ($this->childs as $c)
-        {
-            if ($c instanceof Node)
-                $c->setParent($this);
+            if (!in_array($nodeName, ["style", "script"]))
+                $child->parseHTML($html);
+
+            $this->appendChild($child);
         }
     }
 
-
-    public function getElementRegex(): string
+    public function getElementStringRepresentation(): string
     {
-        $attrCopy = $this->attributes;
-        ksort($attrCopy);
         $attributes = "";
-        foreach ($attrCopy as $key=>$value)
+        foreach ($this->attributes as $key=>$value)
             $attributes .= "[$key=$value]";
 
         return "{". $this->nodeName() ."}" . $attributes;
     }
 
-    public function getRegex(): string
+    public function getTreeString(): string
     {
         $node = $this;
         $regex = [];
 
-        do { array_unshift($regex, $node->getElementRegex());}
+        do { array_unshift($regex, $node->getElementStringRepresentation());}
         while ($node = $node->parentNode());
 
         return join(">", $regex);
     }
-
 
     /** @return \Generator|Node[] */
     public function iterate()
@@ -206,7 +199,7 @@ class Node implements NodeElement
         /** @var Node $node */
         foreach ($this->iterate() as $node)
         {
-            if (preg_match($selectorPattern, $node->getRegex()))
+            if (preg_match($selectorPattern, $node->getTreeString()))
                 return $node;
         }
         return null;
@@ -223,7 +216,7 @@ class Node implements NodeElement
         /** @var Node $node */
         foreach ($this->iterate() as $node)
         {
-            if (preg_match($selectorPattern, $node->getRegex()))
+            if (preg_match($selectorPattern, $node->getTreeString()))
                 $nodes[] = $node;
         }
 
