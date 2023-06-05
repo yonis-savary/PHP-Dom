@@ -21,14 +21,14 @@ class StringStream
     public function seek(int $p) { $this->position = $p; }
     public function eof() { return $this->position >= $this->size; }
 
-    public function read(string $s)
+    public function read(int $s): string
     {
         $res = substr($this->string, $this->position, $s);
         $this->position += $s;
         return $res;
     }
 
-    public function getChar()
+    public function getChar(): string|false
     {
         if ($this->eof())
             return false;
@@ -36,7 +36,7 @@ class StringStream
         return $this->read(1);
     }
 
-    public function expect(string $string)
+    public function expect(string $string): bool
     {
         $position = $this->tell();
 
@@ -47,7 +47,7 @@ class StringStream
         return $expect;
     }
 
-    public function readUntil(string $string, bool $inclusive=true)
+    public function readUntil(string $string, bool $inclusive=true): string
     {
         $result = "";
 
@@ -68,7 +68,7 @@ class StringStream
     }
 
 
-    public function readNode(string $nodeName)
+    public function readNode(string $nodeName): string
     {
         $html = "";
         $depth = 0;
@@ -83,7 +83,10 @@ class StringStream
             }
 
             if ($depth === 0 && $this->expect("</$nodeName"))
+            {
+                $this->readUntil(">");
                 return $html;
+            }
 
             if ($this->expect("<$nodeName"))
                 $depth++;
@@ -96,7 +99,7 @@ class StringStream
 
 
 
-    public static function parseAttributes(string $node)
+    public static function parseAttributes(string $node): array
     {
         $node = preg_replace("/\s/", " ", $node);
         $attributes = preg_replace("/^<[^ ]+|\\/?>$/", "", $node);
