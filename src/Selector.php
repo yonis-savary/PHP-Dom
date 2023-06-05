@@ -4,29 +4,26 @@ namespace YonisSavary\PHPDom;
 
 class Selector
 {
-    const S_EXPLORING_ELEMENT = 0;
-    const S_EXPLORING_ATTRIBUTES = 1;
-    const S_EXPLORING_PSEUDO_ELEMENT = 2;
-    const S_EXPLORING_SPACES = 3;
+    protected const S_PARSING_ELEMENT = 0;
+    protected const S_PARSING_ATTRIBUTES = 1;
+    protected const S_PARSING_PSEUDO_ELEMENT = 2;
+    protected const S_PARSING_SPACES = 3;
 
     public array $parts = [];
     public string $regex = "";
-
 
     public static function fromString(string $selector): Selector
     {
         $stream = new StringStream($selector);
 
-        $mode = self::S_EXPLORING_ELEMENT;
-
-
+        $state = self::S_PARSING_ELEMENT;
         $parts = [];
         $token = "";
 
-        $addPart = function($type, $newMode, $replacement=null)
-            use (&$token, &$parts, &$mode)
+        $addPart = function($type, $newState, $replacement=null)
+            use (&$token, &$parts, &$state)
         {
-            $mode = $newMode;
+            $state = $newState;
 
             $value = $replacement ?? $token ;
             $parts[] = [$type, $value];
@@ -37,56 +34,56 @@ class Selector
         {
             $char = $stream->getChar();
 
-            if ($mode === self::S_EXPLORING_SPACES)
+            if ($state === self::S_PARSING_SPACES)
             {
                 if ($char !== " ")
                 {
                     $token = "";
                     $stream->seek($stream->tell()-1);
-                    $addPart("select-childs", self::S_EXPLORING_ELEMENT, true);
+                    $addPart("select-childs", self::S_PARSING_ELEMENT, true);
                 }
                 continue;
             }
 
-            if ($mode === self::S_EXPLORING_ELEMENT)
+            if ($state === self::S_PARSING_ELEMENT)
             {
                 if ($char === ">")
                 {
-                    $addPart("select-childs", self::S_EXPLORING_SPACES, false);
+                    $addPart("select-childs", self::S_PARSING_SPACES, false);
                     continue;
                 }
                 if ($char === "[")
                 {
-                    $addPart("element", self::S_EXPLORING_ATTRIBUTES);
+                    $addPart("element", self::S_PARSING_ATTRIBUTES);
                     continue;
                 }
                 if ($char === ":")
                 {
-                    $addPart("element", self::S_EXPLORING_PSEUDO_ELEMENT);
+                    $addPart("element", self::S_PARSING_PSEUDO_ELEMENT);
                     continue;
                 }
                 if ($char === " ")
                 {
-                    $addPart("element", self::S_EXPLORING_SPACES);
+                    $addPart("element", self::S_PARSING_SPACES);
                     continue;
                 }
 
                 $token .= $char;
             }
-            else if ($mode === self::S_EXPLORING_ATTRIBUTES)
+            else if ($state === self::S_PARSING_ATTRIBUTES)
             {
                 if ($char === "]")
                 {
-                    $addPart("attribute", self::S_EXPLORING_ELEMENT);
+                    $addPart("attribute", self::S_PARSING_ELEMENT);
                     continue;
                 }
                 $token .= $char;
             }
-            else if ($mode === self::S_EXPLORING_PSEUDO_ELEMENT)
+            else if ($state === self::S_PARSING_PSEUDO_ELEMENT)
             {
                 if ($char === " ")
                 {
-                    $addPart("element", self::S_EXPLORING_SPACES);
+                    $addPart("element", self::S_PARSING_SPACES);
                     continue;
                 }
             }
@@ -94,7 +91,6 @@ class Selector
 
         if (strlen($token))
             $addPart("element", 0);
-
 
         return new Selector($parts);
     }
@@ -140,15 +136,16 @@ class Selector
         if (strpos($attributeSelector, "^="))
             return $baseSelector(sprintf("%s=%s.+?", ...explode("^=", $attributeSelector)));
         else if (strpos($attributeSelector, "*="))
-            return $baseSelector(sprintf("%s=.+?%s.+?", ...explode("^=", $attributeSelector)));
+            return $baseSelector(sprintf("%s=.+?%s.+?", ...explode("*=", $attributeSelector)));
         else if (strpos($attributeSelector, "$="))
-            return $baseSelector(sprintf("%s=.+?%s", ...explode("^=", $attributeSelector)));
+            return $baseSelector(sprintf("%s=.+?%s", ...explode("$=", $attributeSelector)));
+        else if (strpos($attributeSelector, "="))
+            return $baseSelector(sprintf("%s=%s", ...explode("=", $attributeSelector)));
 
-        return $baseSelector($attributeSelector."=");
+        return $baseSelector($attributeSelector);
     }
 
-
-    public function buildRegex()
+    public function buildRegex(): string
     {
         $regexParts = [];
         foreach ($this->parts as $part)
@@ -156,7 +153,7 @@ class Selector
             switch ($part[0])
             {
                 case "element":
-                    $regexParts[] = $part[1] == "*" ? "\\{.+?\\}": preg_quote("{".$part[1]."}");
+                    $regexParts[] = ($part[1] == "*" ? "\\{.+?\\}": preg_quote("{".$part[1]."}")) . "[^>]*";
                     break;
                 case "select-childs":
                     $regexParts[] = $part[1] == 1 ? "(.+)?>": ">";
@@ -167,7 +164,7 @@ class Selector
                     break;
             }
         }
-        return "/".join("", $regexParts)."/";
+        return "/".join("", $regexParts)."$/";
     }
 
     public function cleanParts()
@@ -181,7 +178,12 @@ class Selector
                 array_push($indexesToIgnore, $i);
 
             if ($part[0] == "select-childs" && $part[1] == false)
-                array_push($indexesToIgnore, $i-1, $i+1);
+            {
+                if ($this->parts[$i-1][0] === "select-childs")
+                    $indexesToIgnore[] = $i-1;
+                if ($this->parts[$i+1][0] === "select-childs")
+                    $indexesToIgnore[] = $i+1;
+            }
         }
 
         $cleaned = [];
@@ -196,8 +198,6 @@ class Selector
         $this->regex = $this->buildRegex();
 
     }
-
-
 
     public function getParts()
     {
