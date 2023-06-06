@@ -133,14 +133,16 @@ class Selector
         $attributeSelector = str_replace('"', "", $attributeSelector);
         $attributeSelector = str_replace("'", "", $attributeSelector);
 
+        $genericExplode = fn ($separator) => array_map(fn($e)=> preg_quote($e, "/"), explode($separator, $attributeSelector, 2));
+
         if (strpos($attributeSelector, "^="))
-            return $baseSelector(sprintf("%s=%s.+?", ...explode("^=", $attributeSelector)));
+            return $baseSelector(sprintf("%s=%s.+?", ...$genericExplode("^=")));
         else if (strpos($attributeSelector, "*="))
-            return $baseSelector(sprintf("%s=.+?%s.+?", ...explode("*=", $attributeSelector)));
+            return $baseSelector(sprintf("%s=.+?%s.+?", ...$genericExplode("*=")));
         else if (strpos($attributeSelector, "$="))
-            return $baseSelector(sprintf("%s=.+?%s", ...explode("$=", $attributeSelector)));
+            return $baseSelector(sprintf("%s=.+?%s", ...$genericExplode("$=")));
         else if (strpos($attributeSelector, "="))
-            return $baseSelector(sprintf("%s=%s", ...explode("=", $attributeSelector)));
+            return $baseSelector(sprintf("%s=%s", ...$genericExplode("=")));
 
         return $baseSelector($attributeSelector);
     }
