@@ -10,6 +10,13 @@ use YonisSavary\PHPDom\StringStream;
 
 class Node implements NodeElement
 {
+    const STANDALONE_ELEMENTS = [
+        "input", "br"
+    ];
+    const UNPARSED_ELEMENTS = [
+        "style", "script"
+    ];
+
     protected string $nodeName;
     protected array $attributes=[];
     protected array $childs = [];
@@ -150,10 +157,13 @@ class Node implements NodeElement
                 continue;
             }
 
-            $html = $stream->readNode($nodeName);
+            $html = "";
+            if (!in_array($nodeName, self::STANDALONE_ELEMENTS))
+                $html = $stream->readNode($nodeName);
+
             $child = new Node($nodeName, StringStream::parseAttributes($node));
 
-            if (!in_array($nodeName, ["style", "script"]))
+            if (!in_array($nodeName, self::UNPARSED_ELEMENTS))
                 $child->parseHTML($html);
 
             $this->appendChild($child);
