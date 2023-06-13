@@ -38,13 +38,11 @@ class StringStream
 
     public function expect(string $string): bool
     {
-        $position = $this->tell();
-
-        $next = $this->read(strlen($string));
-        $expect = $next === $string;
-
-        $this->seek($position);
-        return $expect;
+        return substr(
+            $this->string,
+            $this->position,
+            strlen($string)
+        ) === $string;
     }
 
     public function readUntil(string $string, bool $inclusive=true): string
@@ -102,7 +100,7 @@ class StringStream
     public static function parseAttributes(string $node): array
     {
         $node = preg_replace("/\s/", " ", $node);
-        $attributes = preg_replace("/^<[^ ]+|\\/?>$/", "", $node);
+        $attributes = preg_replace("/^<[^ ]+|\/?>$/", "", $node);
 
         $attrArr = [];
         $stream = new self($attributes);

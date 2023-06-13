@@ -135,7 +135,7 @@ class Node implements NodeElement
             }
 
             $node = $stream->readUntil(">");
-            $nodeName = preg_replace("/^<|(\\s.*)?>$/s", "", $node);
+            $nodeName = preg_replace("/^<|(\s.*)?>$/s", "", $node);
 
             if (str_starts_with($node, "</"))
                 continue;
