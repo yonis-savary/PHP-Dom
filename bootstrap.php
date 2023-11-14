@@ -3,7 +3,7 @@
 const TO_LOAD = [
     "src",
     "src/Interfaces",
-    "src/Node"
+    "src/Node",
 ];
 
 foreach (TO_LOAD as $dir)

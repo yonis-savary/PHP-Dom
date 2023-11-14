@@ -99,13 +99,13 @@ class NodeTest extends TestCase
         $this->assertFalse($node->hasAttribute("inexistant"));
     }
 
-    public function test_listAttributes()
+    public function test_attributes()
     {
         $node = $this->getSampleLink();
 
-        $this->assertEquals(["href"], $node->listAttributes());
+        $this->assertEquals(["href" => "https://github.com/"], $node->attributes());
         $node->setAttribute("class", "A");
-        $this->assertEquals(["href", "class"], $node->listAttributes());
+        $this->assertEquals(["href" => "https://github.com/", "class" => "A"], $node->attributes());
     }
 
     public function test_appendChild()
@@ -174,6 +174,7 @@ class NodeTest extends TestCase
         $this->assertNull($document->querySelector("div"), "Inexistant Div");
 
         $this->assertInstanceOf(Node::class, $document->querySelector("span"), "First link");
+
         $this->assertNull($document->querySelector("span > a"), "Inexistant Link inside Span");
     }
 
@@ -182,5 +183,9 @@ class NodeTest extends TestCase
         $document = $this->getSampleDocument();
 
         $this->assertCount(3, $document->querySelectorAll("ul a"));
+
+        $this->assertCount(3, $document->querySelectorAll("button"));
+        $this->assertCount(2, $document->querySelectorAll("button.button"));
+        $this->assertCount(1, $document->querySelectorAll("button.button.green"));
     }
 }

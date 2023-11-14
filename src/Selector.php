@@ -2,212 +2,245 @@
 
 namespace YonisSavary\PHPDom;
 
+use YonisSavary\PHPDom\Node\Node;
+use YonisSavary\PHPDom\StringStream;
+
+/**
+ * To process CSS Selectors, we break them into pieces, example
+ * ```css
+ * section.hero > h1.giant
+ * ```
+ * Will be broken into two `Selector` instances one for `section.hero` and one for `h1.giant`
+ * The first selector will be considered as a parent and the second as a child of the first one
+ *
+ * The selector class contains information about one selector and a link to its parent selector
+ */
 class Selector
 {
-    protected const S_PARSING_ELEMENT = 0;
-    protected const S_PARSING_ATTRIBUTES = 1;
-    protected const S_PARSING_PSEUDO_ELEMENT = 2;
-    protected const S_PARSING_SPACES = 3;
+    const COMBINATOR_DESCENDANT          = " ";
+    const COMBINATOR_CHILD               = ">";
+    const COMBINATOR_NEXT_SIBLING        = "+";
+    const COMBINATOR_SUBSEQUENT_SIBLINGS = "~";
 
-    public array $parts = [];
-    public string $regex = "";
+    protected ?array $checkers = null;
 
-    public static function fromString(string $selector): Selector
+    /**
+     * Break a Selector string into multiple `Selector` instances
+     * Always return an array of instances even if the given selector contains only one selector
+     */
+    public static function fromString(string $selector): array
     {
+        if (str_contains($selector, ","))
+            return array_merge(...array_map(self::fromString(...), explode(",", $selector)));
+
         $stream = new StringStream($selector);
 
-        $state = self::S_PARSING_ELEMENT;
+        $parenthesisStack = [
+            "parenthesis" => 0,
+            "brackets" => 0,
+            "curlyBrackets" => 0
+        ];
+
+        $isInStack = fn():bool => array_sum(array_values($parenthesisStack)) > 0;
+        $isOutOfStack = fn():bool => (!($isInStack()));
+
         $parts = [];
-        $token = "";
+        $text = "";
+        $nextCombinatorType = self::COMBINATOR_DESCENDANT;
 
-        $addPart = function($type, $newState, $replacement=null)
-            use (&$token, &$parts, &$state)
-        {
-            $state = $newState;
-
-            $value = $replacement ?? $token ;
-            $parts[] = [$type, $value];
-            $token = "";
+        $resetStates = function(string $nextType=self::COMBINATOR_DESCENDANT) use (&$text, &$nextCombinatorType) {
+            $text = "";
+            $nextCombinatorType = $nextType;
         };
 
         while (!$stream->eof())
         {
             $char = $stream->getChar();
+            $text .= $char;
 
-            if ($state === self::S_PARSING_SPACES)
+            switch ($char)
             {
-                if ($char !== " ")
-                {
-                    $token = "";
-                    $stream->seek($stream->tell()-1);
-                    $addPart("select-childs", self::S_PARSING_ELEMENT, true);
-                }
+                case "{": $parenthesisStack["curlyBrackets"]++; break;
+                case "}": $parenthesisStack["curlyBrackets"]--; break;
+                case "[": $parenthesisStack["brackets"]++; break;
+                case "]": $parenthesisStack["brackets"]--; break;
+                case "(": $parenthesisStack["parenthesis"]++; break;
+                case ")": $parenthesisStack["parenthesis"]--; break;
+            }
+
+            if (trim($text) !== "" && $char === " " && $isOutOfStack())
+            {
+                $parts[] = [trim($text), $nextCombinatorType];
+                $stream->eats(StringStream::WHITESPACE);
+                $resetStates();
+            }
+
+            if ($char === ">" && $isOutOfStack())
+                $resetStates(self::COMBINATOR_CHILD);
+            if ($char === "+" && $isOutOfStack())
+                $resetStates(self::COMBINATOR_NEXT_SIBLING);
+            if ($char === "~" && $isOutOfStack())
+                $resetStates(self::COMBINATOR_SUBSEQUENT_SIBLINGS);
+        }
+
+        if ($text)
+            $parts[] = [trim($text), $nextCombinatorType];
+
+        $last = null;
+        foreach ($parts as [$selector, $combinatorType])
+            $last = new self($selector, $combinatorType, $last);
+
+        return [$last];
+    }
+
+
+    protected function __construct(
+        public readonly string $elementSelector,
+        public readonly string $combinatorType=self::COMBINATOR_DESCENDANT,
+        public readonly ?Selector $parent=null
+    ){}
+
+    public function getParent(): ?Selector
+    {
+        return $this->parent;
+    }
+
+    protected function getAttributeConditionValue(string $attributeValueExpression): array
+    {
+        $expression = $attributeValueExpression;
+        $sensitive = true;
+
+        if (str_ends_with($expression, "i"))
+        {
+            $sensitive = false;
+            $expression = preg_replace("/ *i$/i", "", $expression);
+        }
+        $expression = preg_replace("/ *s$/i", "", $expression);
+        $expression = preg_replace("^[\"']|[\"']$", "", $expression);
+
+        return [$expression, $sensitive];
+    }
+
+    protected function getAttributeChecker(string $expression): callable
+    {
+        $expression = substr($expression, 1, strlen($expression)-1);
+
+        $getAttributeValueSensitive = function($splitChar) use ($expression) {
+            list($attr, $value) = explode($splitChar, $expression, 2);
+            list($value, $sensitive) = $this->getAttributeChecker($value);
+
+            return [$attr, $value, $sensitive];
+        };
+
+        // VALUE IN WORDS [attr~=value]
+        if (str_contains($expression, "~="))
+        {
+            list($attr, $value, $sensitive) = $getAttributeValueSensitive("~=");
+
+            return $sensitive ?
+                fn(Node $node) => in_array($value, explode(" ", $node->getAttribute($attr))):
+                fn(Node $node) => in_array(strtolower($value), explode(" ", strtolower($node->getAttribute($attr))))
+            ;
+        }
+
+        // VALUE OR VALUE + '-' [attr|=value]
+        if (str_contains($expression, "|="))
+        {
+            list($attr, $value, $sensitive) = $getAttributeValueSensitive("|=");
+
+            return fn(Node $node) => preg_match(
+                "/^".preg_quote($value)."(-|$)/" . ($sensitive ? "": "i"),
+                $node->getAttribute($attr)
+            );
+        }
+
+        // BEGIN WITH [attr^=value]
+        if (str_contains($expression, "^="))
+        {
+            list($attr, $value, $sensitive) = $getAttributeValueSensitive("^=");
+
+            return $sensitive ?
+                fn(Node $node) => str_starts_with($node->getAttribute($attr), $value):
+                fn(Node $node) => str_starts_with(strtolower($node->getAttribute($attr)), strtolower($value));
+        }
+
+        // END WITH [attr$=value]
+        if (str_contains($expression, "$="))
+        {
+            list($attr, $value, $sensitive) = $getAttributeValueSensitive("$=");
+
+            return $sensitive ?
+                fn(Node $node) => str_ends_with($node->getAttribute($attr), $value):
+                fn(Node $node) => str_ends_with(strtolower($node->getAttribute($attr)), strtolower($value));
+        }
+
+        // CONTAIN [attr*=value]
+        if (str_contains($expression, "*="))
+        {
+            list($attr, $value, $sensitive) = $getAttributeValueSensitive("*=");
+
+            return $sensitive ?
+                fn(Node $node) => str_contains($node->getAttribute($attr), $value):
+                fn(Node $node) => str_contains(strtolower($node->getAttribute($attr)), strtolower($value));
+        }
+
+        // EQUAL [attr=value]
+        if (str_contains($expression, "="))
+        {
+            list($attr, $value, $sensitive) = $getAttributeValueSensitive("=");
+
+            return $sensitive ?
+                fn(Node $node) => $node->getAttribute($attr) === $value:
+                fn(Node $node) => strtolower($node->getAttribute($attr)) === strtolower($value);
+        }
+
+        return fn(Node $node) => $node->hasAttribute($expression);
+    }
+
+
+    public function getCheckers(): array
+    {
+        if ($this->checkers)
+            return $this->checkers;
+
+        $checkers = [];
+
+        $stream = new StringStream($this->elementSelector);
+
+        $specialCharacters = [".", "#", "[", ":"];
+
+        while (!$stream->eof())
+        {
+            $char = $stream->getChar();
+            $expression = $char . $stream->readUntilChars($specialCharacters);
+
+            if (!in_array($char, $specialCharacters))
+            {
+                $checkers[] = $expression === "*" ?
+                    fn() => true:
+                    fn(Node $node) => $node->nodeName() === $expression;
+
                 continue;
             }
 
-            if ($state === self::S_PARSING_ELEMENT)
+            switch ($char)
             {
-                if ($char === ">")
-                {
-                    $addPart("select-childs", self::S_PARSING_SPACES, false);
-                    continue;
-                }
-                if ($char === "[")
-                {
-                    $addPart("element", self::S_PARSING_ATTRIBUTES);
-                    continue;
-                }
-                if ($char === ":")
-                {
-                    $addPart("element", self::S_PARSING_PSEUDO_ELEMENT);
-                    continue;
-                }
-                if ($char === " ")
-                {
-                    $addPart("element", self::S_PARSING_SPACES);
-                    continue;
-                }
-
-                $token .= $char;
-            }
-            else if ($state === self::S_PARSING_ATTRIBUTES)
-            {
-                if ($char === "]")
-                {
-                    $addPart("attribute", self::S_PARSING_ELEMENT);
-                    continue;
-                }
-                $token .= $char;
-            }
-            else if ($state === self::S_PARSING_PSEUDO_ELEMENT)
-            {
-                if ($char === " ")
-                {
-                    $addPart("element", self::S_PARSING_SPACES);
-                    continue;
-                }
-            }
-        }
-
-        if (strlen($token))
-            $addPart("element", 0);
-
-        return new Selector($parts);
-    }
-
-
-    public function __toString()
-    {
-        $string = "";
-
-        foreach ($this->parts as $part)
-        {
-            switch ($part[0])
-            {
-                case "element":
-                    $string .= $part[1];
+                case ".":
+                    $checkers[] = fn(Node $node) => in_array(substr($expression, 1), $node->classlist());
                     break;
-                case "select-childs":
-                    $string .= $part[1] == 1 ? " > " : " ";
+                case "#":
+                    $checkers[] = fn(Node $node) => $node->id() === substr($expression, 1);
                     break;
-                case "attribute":
-                    $string .= "[$part[1]]";
+                case "[":
+                    $checkers[] = $this->getAttributeChecker($expression);
+                    break;
+                case ":":
+                    trigger_error("pseudo-classes and pseudo-element are not supported yet", E_USER_WARNING);
                     break;
             }
         }
 
-        return $string;
-    }
-
-
-    public function __construct(array $parts)
-    {
-        $this->parts = $parts;
-        $this->cleanParts();
-    }
-
-    protected function attributeToRegex($attributeSelector)
-    {
-        $baseSelector = fn($str) => "(?=[^\\n>]*\\[$str\\])[^\\n>]*";
-
-        $attributeSelector = str_replace('"', "", $attributeSelector);
-        $attributeSelector = str_replace("'", "", $attributeSelector);
-
-        $genericExplode = fn ($separator) => array_map(fn($e)=> preg_quote($e, "/"), explode($separator, $attributeSelector, 2));
-
-        if (strpos($attributeSelector, "^="))
-            return $baseSelector(sprintf("%s=%s.+?", ...$genericExplode("^=")));
-        else if (strpos($attributeSelector, "*="))
-            return $baseSelector(sprintf("%s=.+?%s.+?", ...$genericExplode("*=")));
-        else if (strpos($attributeSelector, "$="))
-            return $baseSelector(sprintf("%s=.+?%s", ...$genericExplode("$=")));
-        else if (strpos($attributeSelector, "="))
-            return $baseSelector(sprintf("%s=%s", ...$genericExplode("=")));
-
-        return $baseSelector($attributeSelector);
-    }
-
-    public function buildRegex(): string
-    {
-        $regexParts = [];
-        foreach ($this->parts as $part)
-        {
-            switch ($part[0])
-            {
-                case "element":
-                    $regexParts[] = ($part[1] == "*" ? "\\{.+?\\}": preg_quote("{".$part[1]."}")) . "[^>]*";
-                    break;
-                case "select-childs":
-                    $regexParts[] = $part[1] == 1 ? "(.+)?>": ">";
-                    break;
-                case "attribute":
-                    $value = $part[1];
-                    $regexParts[] = $this->attributeToRegex($value);
-                    break;
-            }
-        }
-        return "/".join("", $regexParts)."$/";
-    }
-
-    public function cleanParts()
-    {
-        $indexesToIgnore = [];
-        for ($i=0; $i<count($this->parts); $i++)
-        {
-            $part = $this->parts[$i];
-
-            if ($part[0] == "element" && (!$part[1]))
-                array_push($indexesToIgnore, $i);
-
-            if ($part[0] == "select-childs" && $part[1] == false)
-            {
-                if ($this->parts[$i-1][0] === "select-childs")
-                    $indexesToIgnore[] = $i-1;
-                if ($this->parts[$i+1][0] === "select-childs")
-                    $indexesToIgnore[] = $i+1;
-            }
-        }
-
-        $cleaned = [];
-        for ($i=0; $i<count($this->parts); $i++)
-        {
-            if (in_array($i, $indexesToIgnore))
-                continue;
-            $cleaned[] = $this->parts[$i];
-        }
-
-        $this->parts = $cleaned;
-        $this->regex = $this->buildRegex();
-
-    }
-
-    public function getParts()
-    {
-        return $this->parts;
-    }
-
-    public function getRegex(): string
-    {
-        return $this->regex;
+        $this->checkers = $checkers;
+        return $this->checkers;
     }
 }

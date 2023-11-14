@@ -4,6 +4,8 @@ namespace YonisSavary\PHPDom;
 
 class StringStream
 {
+    const WHITESPACE = [" ", "\t", "\n"];
+
     public string $string;
     public int $size;
     public int $position = 0;
@@ -39,9 +41,9 @@ class StringStream
     public function expect(string $string): bool
     {
         return substr(
-            $this->string,
-            $this->position,
-            strlen($string)
+                    $this->string,
+                    $this->position,
+                    strlen($string)
         ) === $string;
     }
 
@@ -65,6 +67,39 @@ class StringStream
         return $result;
     }
 
+    /**
+     * Reads until we reach one of the given `$chars`
+     * (which won't be included in the results, the pointer is set before the final character)
+     */
+    public function readUntilChars(array $chars): string
+    {
+        $text = "";
+        do
+        {
+            $char = $this->getChar();
+            $text .= $char;
+        }
+        while ((!in_array($char, $chars)) && (!$this->eof()));
+
+        if ($this->eof())
+            return $text;
+
+        $text = substr($text, 0, strlen($text)-1);
+        $this->seek($this->tell()-1);
+
+        return $text;
+    }
+
+    /**
+     * Eats characters while they are included in `$chars`
+     */
+    public function eats(array $chars): void
+    {
+        while (in_array($this->getChar(), $chars))
+            continue;
+
+        $this->seek($this->tell()-1);
+    }
 
     public function readNode(string $nodeName): string
     {
