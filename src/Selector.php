@@ -41,8 +41,9 @@ class Selector
             "curlyBrackets" => 0
         ];
 
-        $isInStack = fn():bool => array_sum(array_values($parenthesisStack)) > 0;
-        $isOutOfStack = fn():bool => (!($isInStack()));
+        $isOutOfStack = function() use (&$parenthesisStack){
+            return array_sum(array_values($parenthesisStack)) === 0;
+        };
 
         $parts = [];
         $text = "";
@@ -116,20 +117,21 @@ class Selector
             $expression = preg_replace("/ *i$/i", "", $expression);
         }
         $expression = preg_replace("/ *s$/i", "", $expression);
-        $expression = preg_replace("^[\"']|[\"']$", "", $expression);
+        $expression = preg_replace("/^[\"']|[\"']$/", "", $expression);
 
         return [$expression, $sensitive];
     }
 
     protected function getAttributeChecker(string $expression): callable
     {
-        $expression = substr($expression, 1, strlen($expression)-1);
+        $expression = trim($expression);
+        $expression = substr($expression, 1, strlen($expression)-2);
 
         $getAttributeValueSensitive = function($splitChar) use ($expression) {
-            list($attr, $value) = explode($splitChar, $expression, 2);
-            list($value, $sensitive) = $this->getAttributeChecker($value);
+            list($attr, $valueExpr) = explode($splitChar, $expression, 2);
+            list($attrValue, $sensitive) = $this->getAttributeConditionValue($valueExpr);
 
-            return [$attr, $value, $sensitive];
+            return [$attr, $attrValue, $sensitive];
         };
 
         // VALUE IN WORDS [attr~=value]
@@ -143,7 +145,7 @@ class Selector
             ;
         }
 
-        // VALUE OR VALUE + '-' [attr|=value]
+        // VALUE OR 'VALUE-' [attr|=value]
         if (str_contains($expression, "|="))
         {
             list($attr, $value, $sensitive) = $getAttributeValueSensitive("|=");

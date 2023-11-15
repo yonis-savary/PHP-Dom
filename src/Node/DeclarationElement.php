@@ -11,11 +11,17 @@ class DeclarationElement implements HTMLElement
     const TYPE_COMMENT = 1;
 
     protected HTMLElement $parent;
+    protected string $uniqueIdentifier;
 
-    public function __construct(
-        public string $content,
-        public int $type=self::TYPE_COMMENT
-    ){}
+    public function __construct(public string $content, public int $type=self::TYPE_COMMENT)
+    {
+        $this->uniqueIdentifier = uniqid("node-", true);
+    }
+
+    public function getUniqueIdentifier(): string
+    {
+        return $this->uniqueIdentifier;
+    }
 
     public function setParent(HTMLElement &$parent)
     {
@@ -48,5 +54,10 @@ class DeclarationElement implements HTMLElement
         }
 
         return "$tabs<!$content>";
+    }
+
+    public function outerHTML(int $depth=0): string
+    {
+        return $this->innerHTML($depth);
     }
 }

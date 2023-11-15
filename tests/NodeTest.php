@@ -4,188 +4,324 @@ namespace YonisSavary\PHPDom\Tests;
 
 use PHPUnit\Framework\TestCase;
 use YonisSavary\PHPDom\Node\Node;
-use YonisSavary\PHPDom\Node\TextElement;
 
 class NodeTest extends TestCase
 {
-    protected function getSampleLink(): Node
+    public static function getDocument(string $html): Node
     {
-        $link = new Node("a", ["href" => "https://github.com/"]);
-        $link->appendChild(new TextElement("GitHub"));
-        return $link;
+        return Node::fromString($html);
     }
 
-    public function test___construct()
+
+    public function test_id()
     {
-        $node = $this->getSampleLink();
-        $this->assertInstanceOf(Node::class, $node);
+        $node = new Node("section", ["id" => "first"]);
+        $this->assertEquals("first", $node->id());
+
+        $node = new Node("section");
+        $this->assertNull($node->id());
     }
 
-    public function test_nodeName()
+    public function test_classlist()
     {
-        $node = $this->getSampleLink();
-        $this->assertEquals("a", $node->nodeName());
-    }
+        $node = new Node("section");
+        $this->assertEquals([], $node->classlist());
 
-    public function test_innerText()
-    {
-        $node = $this->getSampleLink();
-        $this->assertEquals(
-            "GitHub",
-            $node->innerText()
-        );
-    }
-
-    public function test_innerHTML()
-    {
-        $node = $this->getSampleLink();
-        $this->assertEquals(
-            "\n<a href=\"https://github.com/\">\n\tGitHub\n</a>",
-            $node->innerHTML()
-        );
-    }
-
-    public function test_parentNode()
-    {
-        $holder = new Node("section");
-        $span = new Node("span");
-        $holder->appendChild($span);
-
-        $this->assertEquals($holder, $span->parentNode());
-    }
-
-    public function test_setParent()
-    {
-        $span = new Node("span");
-        $holder = new Node("section");
-        $span->setParent($holder);
-
-        $this->assertEquals($holder, $span->parentNode());
+        $node = new Node("section", ["class"=> "button green icon"]);
+        $this->assertEquals(["button", "green", "icon"], $node->classlist());
     }
 
 
     public function test_setAttribute()
     {
-        $node = $this->getSampleLink();
+        $node = new Node("section");
 
-        $node->setAttribute("href", "A");
-        $this->assertEquals("A", $node->getAttribute("href"));
+        $node->setAttribute("class", "button");
+        $this->assertEquals("button", $node->getAttribute("class"));
 
-        $node->setAttribute("href", "B");
-        $this->assertEquals("B", $node->getAttribute("href"));
+        $node->setAttribute("class", "link");
+        $this->assertEquals("link", $node->getAttribute("class"));
     }
 
     public function test_getAttribute()
     {
-        $node = $this->getSampleLink();
+        $node = new Node("section");
 
-        $node->setAttribute("href", "A");
-        $this->assertEquals("A", $node->getAttribute("href"));
+        $this->assertNull($node->getAttribute("class"));
 
-        $node->setAttribute("href", "B");
-        $this->assertEquals("B", $node->getAttribute("href"));
-
-        $this->assertNull($node->getAttribute("inexistant"));
+        $node->setAttribute("class", "button");
+        $this->assertEquals("button", $node->getAttribute("class"));
     }
 
     public function test_hasAttribute()
     {
-        $node = $this->getSampleLink();
+        $node = new Node("section");
 
         $this->assertFalse($node->hasAttribute("class"));
-        $node->setAttribute("class", "A");
-        $this->assertTrue($node->hasAttribute("class"));
 
-        $this->assertFalse($node->hasAttribute("inexistant"));
+        $node->setAttribute("class", "button");
+        $this->assertTrue($node->hasAttribute("class"));
     }
 
     public function test_attributes()
     {
-        $node = $this->getSampleLink();
+        $attributes = [
+            "id" => "saveButton",
+            "class" => "button green"
+        ];
 
-        $this->assertEquals(["href" => "https://github.com/"], $node->attributes());
-        $node->setAttribute("class", "A");
-        $this->assertEquals(["href" => "https://github.com/", "class" => "A"], $node->attributes());
+        $node = new Node("section", $attributes);
+
+        $this->assertEquals($attributes, $node->attributes());
     }
 
     public function test_appendChild()
     {
-        $holder = new Node("section");
-        $span = new Node("span");
-        $holder->appendChild($span);
+        $parent = new Node("section");
+        $child = new Node("button");
 
-        $this->assertEquals(
-            [$span],
-            $holder->childNodes()
-        );
+        $parent->appendChild($child);
+
+        $this->assertEquals($parent, $child->parentNode());
+        $this->assertCount(1, $parent->childNodes());
     }
 
-    public function childNodes()
+    public function test_childNodes()
     {
-        $holder = new Node("section");
-        $this->assertEquals([], $holder->childNodes());
+        $parent = new Node("section");
+        $child = new Node("button");
+        $secondChild = new Node("button");
 
-        $span = new Node("span");
-        $holder->appendChild($span);
+        $parent->appendChild($child);
+        $this->assertCount(1, $parent->childNodes());
 
-        $this->assertEquals([$span], $holder->childNodes());
-    }
-    /*
-
-    public function test_makeDocument()
-    {
-        $node = $this->getSampleLink();
+        $parent->appendChild($secondChild);
+        $this->assertCount(2, $parent->childNodes());
     }
 
-    public function test_parseHTML()
-    {
-        $node = $this->getSampleLink();
-    }
 
-    public function test_getElementRegex()
-    {
-        $node = $this->getSampleLink();
-    }
-
-    public function test_getRegex()
-    {
-        $node = $this->getSampleLink();
-    }
-
+    /** @return \Generator|Node[] */
     public function test_iterate()
     {
-        $node = $this->getSampleLink();
-    }
-    */
+        $doc = self::getDocument("
+            <section>
+                <section>
+                    <label>Some input</label>
+                    <input type='text'>
+                </section>
+                <section>
+                    <button>Save</button>
+                    <button>Cancel</button>
+                </section>
+            </section>
+        ");
 
-    public function getSampleDocument()
-    {
-        return Node::fromFile(__DIR__ . "/Pages/phpdom-sample.html");
+        $acc = [];
+
+        foreach ($doc->iterate() as $child)
+        {
+            $nodeName = $child->nodeName();
+            $acc[$nodeName] ??= 0;
+            $acc[$nodeName]++;
+        }
+
+        $this->assertEquals([
+            "section" => 3,
+            "label" => 1,
+            "input" => 1,
+            "button" => 2,
+            ":root" => 1
+        ], $acc);
     }
+
+
+    protected function getSiblingsDoc()
+    {
+        return $this->getDocument("
+            <button id='one'>one</button>
+            <button id='two'>two</button>
+            <button id='three'>three</button>
+            <button id='four'>four</button>
+            <button id='five'>five</button>
+            <button id='six'>six</button>
+        ");
+    }
+
+    public function test_previousSiblings()
+    {
+        $doc = $this->getSiblingsDoc();
+        $third = $doc->querySelector("#three");
+
+        $this->assertCount(2, $third->previousSiblings());
+    }
+
+    public function test_nextSiblings()
+    {
+        $doc = $this->getSiblingsDoc();
+        $third = $doc->querySelector("#three");
+
+        $this->assertCount(3, $third->nextSiblings());
+    }
+
+    public function test_previousSibling()
+    {
+        $doc = $this->getSiblingsDoc();
+        $third = $doc->querySelector("#three");
+
+        $this->assertEquals("two", $third->previousSibling()->id());
+    }
+
+    public function test_nextSibling()
+    {
+        $doc = $this->getSiblingsDoc();
+        $third = $doc->querySelector("#three");
+
+        $this->assertEquals("four", $third->nextSibling()->id());
+    }
+
+    public function test_getSiblings()
+    {
+        $doc = $this->getSiblingsDoc();
+        $third = $doc->querySelector("#three");
+
+        $this->assertCount(5, $third->getSiblings());
+        $this->assertCount(6, $third->getSiblings(false));
+    }
+
+
+
+
+    public function test_matches()
+    {
+        $strToNode = fn(string $node) => Node::fromString($node)->childNodes()[0];
+        $assertMatches = fn(string $selector, string $node) => $this->assertTrue($strToNode($node)->matches($selector));
+        $assertDoNotMatches = fn(string $selector, string $node) => $this->assertFalse($strToNode($node)->matches($selector));
+
+        # Classlist tests
+        $assertMatches(".button.green", "<button class='button green'>button</button>");
+        $assertMatches(".green.button", "<button class='button green'>button</button>");
+        $assertDoNotMatches(".button.green", "<button class='button'>button</button>");
+
+        # ID tests
+        $assertMatches(".button.green#saveBtn", "<button id='saveBtn' class='button green'>button</button>");
+        $assertDoNotMatches(".button.green#saveBtn", "<button class='button green'>button</button>");
+
+        # EQUAL [attr=value]
+        $assertMatches("[type='text']", "<input type='text'>");
+        $assertDoNotMatches("[type='text']", "<input type='number'>");
+
+        # BEGIN WITH [attr^=value]
+        $assertMatches("[class^='php']", "<code class='php'></code>");
+        $assertDoNotMatches("[class^='sql']", "<code class='php'></code>");
+
+        # END WITH [attr$=value]
+        $assertMatches("[class$='php']", "<code class='language-php'></code>");
+        $assertDoNotMatches("[class$='sql']", "<code class='language-php'></code>");
+
+        # CONTAIN [attr*=value]
+        $assertMatches("[class*='php']", "<code class='language php snippet'></code>");
+        $assertDoNotMatches("[class*='sql']", "<code class='language php snippet'></code>");
+
+        # VALUE IN WORDS [attr~=value]
+        $assertMatches("[class~='php']", "<code class='language php snippet'></code>");
+        $assertDoNotMatches("[class~='lang']", "<code class='language php snippet'></code>");
+
+        # VALUE OR VALUE + '-' [attr|=value]
+        $assertMatches("[class|='language']", "<code class='language'></code>");
+        $assertMatches("[class|='language']", "<code class='language-php'></code>");
+        $assertDoNotMatches("[class|='language']", "<code class='php language'></code>");
+    }
+
 
     public function test_querySelector()
     {
-        $document = $this->getSampleDocument();
-        $this->assertInstanceOf(Node::class, $document->querySelector("section"), "Base section");
-        $this->assertInstanceOf(Node::class, $document->querySelector("a"), "First link");
-        $this->assertInstanceOf(Node::class, $document->querySelector("li > a"), "Link inside list");
-        $this->assertInstanceOf(Node::class, $document->querySelector("section ul a"), "Full selector");
+        $tree = $this->getDocument("
+            <nav>
+                <h1 class='title'>App!</h1>
+                <a href=''>Home<a>
+            </nav>
+            <body>
+                <button id='myButton'></button>
 
-        $this->assertNull($document->querySelector("div"), "Inexistant Div");
+                <div>
+                    <b>Warning !</b>
+                    <label>Hello</label>
+                    <input type='text'>
+                </div>
 
-        $this->assertInstanceOf(Node::class, $document->querySelector("span"), "First link");
+                <
+            </body>
+        ");
 
-        $this->assertNull($document->querySelector("span > a"), "Inexistant Link inside Span");
+        # Test different combinator
+
+        // Selector::COMBINATOR_CHILD;
+        $this->assertNotNull($tree->querySelector("body > button"));
+        $this->assertNotNull($tree->querySelector("body > div > b"));
+        $this->assertNull($tree->querySelector("body > b"));
+
+        // Selector::COMBINATOR_DESCENDANT;
+        $this->assertNotNull($tree->querySelector("button"));
+        $this->assertNotNull($tree->querySelector("body button"));
+        $this->assertNotNull($tree->querySelector("body div b"));
+        $this->assertNull($tree->querySelector("div button"));
+
+        // Selector::COMBINATOR_NEXT_SIBLING;
+        $this->assertNotNull($tree->querySelector("h1 + a"));
+        $this->assertNull($tree->querySelector("h1 + button"));
+
+        // Selector::COMBINATOR_SUBSEQUENT_SIBLINGS;
+        $this->assertNotNull($tree->querySelector("h1 ~ a"));
+        $this->assertNull($tree->querySelector("h1 ~ button"));
     }
 
     public function test_querySelectorAll()
     {
-        $document = $this->getSampleDocument();
+        # Basics
 
-        $this->assertCount(3, $document->querySelectorAll("ul a"));
+        $tree = $this->getDocument("
+            <section id='first'>
+                <a href=''></a>
+                <a></a>
+                <a href=''></a>
+            </section>
+            <div id='second'>
+                <a></a>
+                <a href=''></a>
+                <a href=''></a>
+            </div>
+        ");
 
-        $this->assertCount(3, $document->querySelectorAll("button"));
-        $this->assertCount(2, $document->querySelectorAll("button.button"));
-        $this->assertCount(1, $document->querySelectorAll("button.button.green"));
+        $this->assertCount(6, $tree->querySelectorAll("a"));
+        $this->assertCount(3, $tree->querySelectorAll("#first a"));
+        $this->assertCount(3, $tree->querySelectorAll("#second a"));
+        $this->assertCount(4, $tree->querySelectorAll("a[href]"));
+        $this->assertCount(6, $tree->querySelectorAll("div a, section a"));
+
+        # Combinators !
+
+        $tree = $this->getDocument("
+            <section id='first'>
+                <h1>Title</h1>
+                <a href=''></a>
+                <a></a>
+                <a href=''></a>
+            </section>
+            <div id='second'>
+                <a></a>
+                <section>
+                    <h1 id='secondTitle'></h1>
+                    <a href=''></a>
+                    <a href=''></a>
+                </section>
+            </div>
+        ");
+
+        $this->assertCount(6, $tree->querySelectorAll("a"));
+        $this->assertCount(3, $tree->querySelectorAll("div a"));
+        $this->assertCount(2, $tree->querySelectorAll("h1 + a"));
+        $this->assertCount(5, $tree->querySelectorAll("h1 ~ a"));
+        $this->assertCount(2, $tree->querySelectorAll("#secondTitle ~ a"));
+
     }
 }

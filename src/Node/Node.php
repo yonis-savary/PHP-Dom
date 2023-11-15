@@ -13,8 +13,14 @@ class Node implements NodeElement
     const STANDALONE_ELEMENTS = [
         "input", "br"
     ];
+
+    /**
+     * Unparsed elements are put into dom but
+     * their content is stored as a text element
+     */
     const UNPARSED_ELEMENTS = [
-        "style", "script"
+        "style",
+        "script"
     ];
 
     protected string $nodeName;
@@ -25,11 +31,24 @@ class Node implements NodeElement
     protected ?string $id = null;
     protected array $classList = [];
 
+    protected string $uniqueIdentifier;
+
+
     public function __construct(string $nodeName, array $attributes=[])
     {
         $this->nodeName = $nodeName;
         $this->attributes = $attributes ?? [];
         $this->refreshSpecialAttributes();
+
+        $this->uniqueIdentifier = uniqid("node-", true);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function getUniqueIdentifier(): string
+    {
+        return $this->uniqueIdentifier;
     }
 
     /**
@@ -38,7 +57,7 @@ class Node implements NodeElement
     protected function refreshSpecialAttributes()
     {
         $this->id = $this->getAttribute("id");
-        $this->classList = explode(" ", $this->getAttribute("class") ?? "");
+        $this->classList = array_filter(explode(" ", $this->getAttribute("class") ?? ""));
     }
 
     public function id(): ?string
@@ -69,37 +88,40 @@ class Node implements NodeElement
         $this->parent = $parent;
     }
 
-    public function innerText(): string
-    {
-        return join("\n", array_map(fn($e)=>$e->innerText(), $this->childNodes));
-    }
-
     public function __toString(): string
     {
-        return $this->innerHTML();
+        return $this->outerHTML();
     }
 
-    public function innerHTML(int $depth=0): string
+    public function outerHTML(int $depth=0): string
     {
-        $nodeName = $this->nodeName();
+        $node = $this->nodeName();
 
         $attributes = $this->attributes;
         $attrStr = "";
         foreach($attributes as $key => $value)
             $attrStr .= " $key=\"$value\"";
 
-        $tabs = str_repeat("\t", $depth);
+        $attrStr = trim($attrStr);
+        $tabs = "\n" . str_repeat("\t", $depth);
 
-        if (!count($this->childNodes))
-            return "\n$tabs<$nodeName$attrStr/>";
+        if (in_array($node, self::STANDALONE_ELEMENTS))
+            return $tabs . "<$node $attrStr/>";
 
-        return
-            "\n$tabs<$nodeName$attrStr>\n"
-            .join("", array_map(fn($e)=> $e->innerHTML($depth+1), $this->childNodes)).
-            "\n$tabs</$nodeName>";
+        return $tabs . "<$node $attrStr>\n". $this->innerHTML() . $tabs . "</$node>";
     }
 
-    public function setAttribute(string $key, mixed $value)
+    public function innerHTML(int $depth=0): string
+    {
+        return join("", array_map(fn($e)=> $e->outerHTML($depth+1), $this->childNodes));
+    }
+
+    public function innerText(): string
+    {
+        return join("\n", array_map(fn($e)=>$e->innerText(), $this->childNodes));
+    }
+
+    public function setAttribute(string $key, mixed $value): void
     {
         $this->attributes[$key] = $value;
         $this->refreshSpecialAttributes();
@@ -129,10 +151,13 @@ class Node implements NodeElement
         return $this->attributes;
     }
 
-    public function appendChild(HTMLElement $node)
+    public function appendChild(HTMLElement ...$nodes): void
     {
-        $this->childNodes[] = $node;
-        $node->setParent($this);
+        foreach ($nodes as $node)
+        {
+            $this->childNodes[] = $node;
+            $node->setParent($this);
+        }
     }
 
     public function childNodes(): array
@@ -143,7 +168,8 @@ class Node implements NodeElement
     public static function fromString(string $html): Node
     {
         $node = new Node(":root");
-        $node->parseHTML($html);
+        NodeUtils::parseHTML($node, $html);
+
         return $node;
     }
 
@@ -155,69 +181,17 @@ class Node implements NodeElement
         return self::fromString(file_get_contents($path));
     }
 
-    public function parseHTML(string $html): void
-    {
-        $html = trim($html);
-        $stream = new StringStream($html);
-
-        while (!$stream->eof())
-        {
-            $text = $stream->readUntil("<", false);
-
-            if (trim($text) !== "")
-            {
-                $this->appendChild(new TextElement($text));
-                continue;
-            }
-
-            $node = $stream->readUntil(">");
-            $nodeName = preg_replace("/^<|(\s.*)?>$/s", "", $node);
-
-            if (str_starts_with($node, "</"))
-                continue;
-
-            if (str_starts_with($node, "<!--"))
-            {
-                $comment = $node;
-                if (!str_ends_with($comment, "-->"))
-                    $comment .= $stream->readUntil("-->");
-
-                $commentContent = preg_replace("/.*<!--|-->$/s", "", $comment);
-                $this->childNodes[] = new DeclarationElement($commentContent, DeclarationElement::TYPE_COMMENT);
-                continue;
-            }
-            if (str_starts_with($node, "<!"))
-            {
-                $declaration = substr($node, 2, strlen($node)-3);
-                $this->childNodes[] = new DeclarationElement($declaration, DeclarationElement::TYPE_DECLARATION);
-                continue;
-            }
-
-            $html = "";
-            if (!in_array($nodeName, self::STANDALONE_ELEMENTS))
-                $html = $stream->readNode($nodeName);
-
-            $child = new Node($nodeName, StringStream::parseAttributes($node));
-
-            if (!in_array($nodeName, self::UNPARSED_ELEMENTS))
-                $child->parseHTML($html);
-
-            $this->appendChild($child);
-        }
-    }
-
-    /** @return \Generator|Node[] */
     public function iterate()
     {
         yield $this;
         foreach ($this->childNodes as $child)
         {
-            if ($child instanceof Node)
+            if ($child instanceof NodeElement)
                 yield from $child->iterate();
         }
     }
 
-    protected function matchSingleSelector(Selector $selector, bool $parentCanMatch=false): bool
+    public function matchSingleSelector(Selector $selector, bool $parentCanMatch=false): bool
     {
         $checkers = $selector->getCheckers();
 
@@ -225,7 +199,7 @@ class Node implements NodeElement
 
         foreach ($checkers as $checkCondition)
         {
-            if ($checkCondition($this) === false)
+            if ($checkCondition($this) == false)
             {
                 $thisElementMatches = false;
                 break;
@@ -249,15 +223,14 @@ class Node implements NodeElement
             {
                 case Selector::COMBINATOR_DESCENDANT:
                     return $this->parentNode()->matchSingleSelector($parent, true);
-                    break;
 
                 case Selector::COMBINATOR_CHILD:
                     return $this->parentNode()->matchSingleSelector($parent, false);
-                    break;
 
                 case Selector::COMBINATOR_NEXT_SIBLING:
-                    return $this->previousSibling()->matchSingleSelector($parent);
-                    break;
+                    if ($previous = $this->previousSibling())
+                        return $previous->matchSingleSelector($parent);
+                    return false;
 
                 case Selector::COMBINATOR_SUBSEQUENT_SIBLINGS:
                     foreach ($this->previousSiblings() as $previous)
@@ -265,8 +238,8 @@ class Node implements NodeElement
                         if ($previous->matchSingleSelector($parent))
                             return true;
                     }
-                    break;
-                default:
+                    return false;
+                 default:
                     trigger_error("Unknown combinator type \"". $selector->combinatorType ."\"", E_USER_ERROR);
             }
         }
@@ -274,10 +247,6 @@ class Node implements NodeElement
         return true;
     }
 
-    /**
-     * @param string|array<Selector> $selectors CSS Selector as a String, or the results of `Selector::fromString`
-     * @return bool `true` if the Element fully matches the given selector
-     */
     public function matches(string|array $selectors): bool
     {
         if ($selectors instanceof Selector)
@@ -294,9 +263,6 @@ class Node implements NodeElement
         return false;
     }
 
-    /**
-     * @return ?Node The first child element that match the given selector or `null` is nothing was found
-     */
     public function querySelector(string $selector): ?Node
     {
         $selector = Selector::fromString($selector);
@@ -310,9 +276,6 @@ class Node implements NodeElement
         return null;
     }
 
-    /**
-     * @return array<Node> Every child elements that matches the given selector
-    */
     public function querySelectorAll(string $selector): array
     {
         $nodes = [];
@@ -328,59 +291,43 @@ class Node implements NodeElement
         return $nodes;
     }
 
-    /**
-     * @return array<Node> Previous elements matching the same parent
-     */
     public function previousSiblings(): array
     {
         $siblings = $this->getSiblings(false);
 
         for ($i=0; $i<count($siblings); $i++)
         {
-            if ($siblings[$i] == $this)
+            if ($siblings[$i]->getUniqueIdentifier() == $this->getUniqueIdentifier())
                 break;
         }
 
-        return array_slice($siblings, 0, $i-1);
+        return array_slice($siblings, 0, $i);
     }
 
-    /**
-     * @return array<Node> Next elements matching the same parent
-     */
     public function nextSiblings(): array
     {
         $siblings = $this->getSiblings(false);
 
         for ($i=0; $i<count($siblings); $i++)
         {
-            if ($siblings[$i] == $this)
+            if ($siblings[$i]->getUniqueIdentifier() == $this->getUniqueIdentifier())
                 break;
         }
 
         return array_slice($siblings, $i+1);
     }
 
-    /**
-     * @return ?Node The previous sibling from the parent node (or null)
-     */
     public function previousSibling(): ?NodeElement
     {
         $previousSiblings = $this->previousSiblings();
         return $previousSiblings[count($previousSiblings)-1] ?? null;
     }
 
-    /**
-     * @return ?Node The next sibling from the parent node (or null)
-     */
     public function nextSibling(): ?NodeElement
     {
         return $this->nextSiblings()[0] ?? null;
     }
 
-    /**
-     * @param bool $skipSelf If `true`, the current element is filtered out of the results
-     * @return array Get every NodeElement siblings
-     */
     public function getSiblings(bool $skipSelf=true): array
     {
         $siblings = $this->parentNode()->childNodes();

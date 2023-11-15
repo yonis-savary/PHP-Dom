@@ -101,6 +101,11 @@ class StringStream
         $this->seek($this->tell()-1);
     }
 
+    /**
+     * Eats character until bumping into "</nodeName"
+     * - Support nested element
+     * - Return empty string if the document's end was reached without closing the tag
+     */
     public function readNode(string $nodeName): string
     {
         $html = "";
@@ -128,41 +133,5 @@ class StringStream
 
             $html .= $this->getChar();
         }
-    }
-
-
-
-    public static function parseAttributes(string $node): array
-    {
-        $node = preg_replace("/\s/", " ", $node);
-        $attributes = preg_replace("/^<[^ ]+|\/?>$/", "", $node);
-
-        $attrArr = [];
-        $stream = new self($attributes);
-        while (!$stream->eof())
-            $attrArr[] = $stream->readUntil(" ");
-
-        $cleanAttr = [];
-        $attrArr = array_filter($attrArr);
-        foreach ($attrArr as $attr)
-        {
-            if ($attr === " ")
-                continue;
-
-            $attr = trim($attr);
-            if (strpos($attr, "=") !== false)
-            {
-                list($k, $v) = explode("=", $attr, 2);
-
-                $v = substr($v, 1, strlen($v)-2);
-                $cleanAttr[$k] = $v;
-            }
-            else
-            {
-                $cleanAttr[$attr] = true;
-            }
-        }
-
-        return $cleanAttr;
     }
 }
