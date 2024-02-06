@@ -7,7 +7,7 @@ class StringStream
     const WHITESPACE = [" ", "\t", "\n"];
 
     public string $string;
-    public int $size;
+    public readonly int $size;
     public int $position = 0;
 
     public function __construct(string $string)
@@ -18,15 +18,15 @@ class StringStream
     }
 
 
-    public function rewind() { $this->position = 0; }
-    public function tell() { return $this->position; }
-    public function seek(int $p) { $this->position = $p; }
-    public function eof() { return $this->position >= $this->size; }
+    public function rewind()            { $this->position = 0; }
+    public function seek(int $position) { $this->position = $position; }
+    public function tell()              { return $this->position; }
+    public function eof()               { return $this->position >= $this->size; }
 
-    public function read(int $s): string
+    public function read(int $size): string
     {
-        $res = substr($this->string, $this->position, $s);
-        $this->position += $s;
+        $res = substr($this->string, $this->position, $size);
+        $this->position += $size;
         return $res;
     }
 
@@ -41,9 +41,9 @@ class StringStream
     public function expect(string $string): bool
     {
         return substr(
-                    $this->string,
-                    $this->position,
-                    strlen($string)
+            $this->string,
+            $this->position,
+            strlen($string)
         ) === $string;
     }
 
@@ -71,8 +71,11 @@ class StringStream
      * Reads until we reach one of the given `$chars`
      * (which won't be included in the results, the pointer is set before the final character)
      */
-    public function readUntilChars(array $chars): string
+    public function readUntilChars(array|string $chars): string
     {
+        if (is_string($chars))
+            $chars = str_split($chars);
+
         $text = "";
         do
         {
@@ -81,7 +84,7 @@ class StringStream
         }
         while ((!in_array($char, $chars)) && (!$this->eof()));
 
-        if ($this->eof())
+        if ($this->eof() && (!in_array($char, $chars)))
             return $text;
 
         $text = substr($text, 0, strlen($text)-1);
@@ -93,8 +96,11 @@ class StringStream
     /**
      * Eats characters while they are included in `$chars`
      */
-    public function eats(array $chars): void
+    public function eats(array|string $chars): void
     {
+        if (is_string($chars))
+            $chars = str_split($chars);
+
         while (in_array($this->getChar(), $chars))
             continue;
 
@@ -102,7 +108,7 @@ class StringStream
     }
 
     /**
-     * Eats character until bumping into "</nodeName"
+     * Eats the INNER HTML characters of a tag until bumping into "</nodeName" (which is not included)
      * - Support nested element
      * - Return empty string if the document's end was reached without closing the tag
      */
@@ -112,18 +118,19 @@ class StringStream
         $depth = 0;
 
         $initialPosition = $this->tell();
+
         while (true)
         {
-            if ($this->eof())
-            {
-                $this->seek($initialPosition);
-                return "";
-            }
-
             if ($depth === 0 && $this->expect("</$nodeName"))
             {
                 $this->readUntil(">");
                 return $html;
+            }
+
+            if ($this->eof())
+            {
+                $this->seek($initialPosition);
+                return "";
             }
 
             if ($this->expect("<$nodeName"))

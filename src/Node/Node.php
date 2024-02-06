@@ -6,7 +6,6 @@ use InvalidArgumentException;
 use YonisSavary\PHPDom\Interfaces\HTMLElement;
 use YonisSavary\PHPDom\Interfaces\NodeElement;
 use YonisSavary\PHPDom\Selector;
-use YonisSavary\PHPDom\StringStream;
 
 class Node implements NodeElement
 {
@@ -247,13 +246,13 @@ class Node implements NodeElement
         return true;
     }
 
-    public function matches(string|array $selectors): bool
+    public function matches(string|array|Selector $selectors): bool
     {
-        if ($selectors instanceof Selector)
-            $selectors = [$selectors];
+        if (is_string($selectors))
+            $selectors = Selector::fromString($selectors);
 
         if (!is_array($selectors))
-            $selectors = Selector::fromString($selectors);
+            $selectors = [$selectors];
 
         foreach ($selectors as $selector)
         {

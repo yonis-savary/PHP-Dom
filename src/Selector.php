@@ -24,6 +24,12 @@ class Selector
 
     protected ?array $checkers = null;
 
+    protected function __construct(
+        public readonly string $elementSelector,
+        public readonly string $combinatorType=self::COMBINATOR_DESCENDANT,
+        public readonly ?Selector $parent=null
+    ){}
+
     /**
      * Break a Selector string into multiple `Selector` instances
      * Always return an array of instances even if the given selector contains only one selector
@@ -76,12 +82,21 @@ class Selector
                 $resetStates();
             }
 
-            if ($char === ">" && $isOutOfStack())
-                $resetStates(self::COMBINATOR_CHILD);
-            if ($char === "+" && $isOutOfStack())
-                $resetStates(self::COMBINATOR_NEXT_SIBLING);
-            if ($char === "~" && $isOutOfStack())
-                $resetStates(self::COMBINATOR_SUBSEQUENT_SIBLINGS);
+            if ($isOutOfStack())
+            {
+                switch ($char)
+                {
+                    case ">":
+                        $resetStates(self::COMBINATOR_CHILD);
+                        break;
+                    case "+":
+                        $resetStates(self::COMBINATOR_NEXT_SIBLING);
+                        break;
+                    case "~":
+                        $resetStates(self::COMBINATOR_SUBSEQUENT_SIBLINGS);
+                        break;
+                }
+            }
         }
 
         if ($text)
@@ -93,13 +108,6 @@ class Selector
 
         return [$last];
     }
-
-
-    protected function __construct(
-        public readonly string $elementSelector,
-        public readonly string $combinatorType=self::COMBINATOR_DESCENDANT,
-        public readonly ?Selector $parent=null
-    ){}
 
     public function getParent(): ?Selector
     {
@@ -134,7 +142,7 @@ class Selector
             return [$attr, $attrValue, $sensitive];
         };
 
-        // VALUE IN WORDS [attr~=value]
+        // [attr~=value]: VALUE IN WORDS
         if (str_contains($expression, "~="))
         {
             list($attr, $value, $sensitive) = $getAttributeValueSensitive("~=");
@@ -145,7 +153,7 @@ class Selector
             ;
         }
 
-        // VALUE OR 'VALUE-' [attr|=value]
+        // [attr|=value]: VALUE OR 'VALUE-'
         if (str_contains($expression, "|="))
         {
             list($attr, $value, $sensitive) = $getAttributeValueSensitive("|=");
@@ -156,7 +164,7 @@ class Selector
             );
         }
 
-        // BEGIN WITH [attr^=value]
+        // [attr^=value]: BEGIN WITH
         if (str_contains($expression, "^="))
         {
             list($attr, $value, $sensitive) = $getAttributeValueSensitive("^=");
@@ -166,7 +174,7 @@ class Selector
                 fn(Node $node) => str_starts_with(strtolower($node->getAttribute($attr)), strtolower($value));
         }
 
-        // END WITH [attr$=value]
+        // [attr$=value]: END WITH
         if (str_contains($expression, "$="))
         {
             list($attr, $value, $sensitive) = $getAttributeValueSensitive("$=");
@@ -176,7 +184,7 @@ class Selector
                 fn(Node $node) => str_ends_with(strtolower($node->getAttribute($attr)), strtolower($value));
         }
 
-        // CONTAIN [attr*=value]
+        // [attr*=value]: CONTAIN
         if (str_contains($expression, "*="))
         {
             list($attr, $value, $sensitive) = $getAttributeValueSensitive("*=");
@@ -186,7 +194,7 @@ class Selector
                 fn(Node $node) => str_contains(strtolower($node->getAttribute($attr)), strtolower($value));
         }
 
-        // EQUAL [attr=value]
+        // [attr=value]: EQUAL
         if (str_contains($expression, "="))
         {
             list($attr, $value, $sensitive) = $getAttributeValueSensitive("=");
